@@ -5,7 +5,6 @@ typedef long long LL;
 
 int inverse(int, int);
 void field_init(int);
-int field_modulus();
 
 struct field_element {
 	field_element() : value(0) {}
@@ -34,6 +33,7 @@ struct field_element {
 	int get_value() const { return value; }
 
 	static void init(int m) { modulus = m; }
+
 	static int get_modulus() { return modulus; }
 
 private:

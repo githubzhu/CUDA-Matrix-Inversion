@@ -10,7 +10,3 @@ int inverse(int a, int p){
 void field_init(int m){
 	field_element::init(m);
 }
-
-int field_modulus(){
-	return field_element::get_modulus();
-}
