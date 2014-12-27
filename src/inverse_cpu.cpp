@@ -15,16 +15,19 @@ bool inverse_cpu(int *A, int *B, int n){
     CUmodule cuModule = (CUmodule)0;
     res = cuModuleLoad(&cuModule, "inverse_gpu.ptx");
 
-    CUfunction init, fixRow, fixColumn;
+    CUfunction init, swap, fixRow, fixColumn;
 	res = cuModuleGetFunction(&init, cuModule, "init");
+	res = cuModuleGetFunction(&swap, cuModule, "swap");
     res = cuModuleGetFunction(&fixRow, cuModule, "fixRow");
 	res = cuModuleGetFunction(&fixColumn, cuModule, "fixColumn");
 	
- 	int row_id, column_id;
+	Value inv;
+ 	int row_id, column_id, row_to_swap;
  	CUdeviceptr devA, devB, dev_to_process;
  	void* argsInit[] = {&devB, &n};
- 	void* argsRow[] = {&dev_to_process, &devA, &n, &row_id};
-	void* argsColumn[] = {&dev_to_process, &devA, &n, &column_id};
+ 	void* argsSwap[] = {&dev_to_process, &n, &row_id, &row_to_swap};
+ 	void* argsRow[] = {&dev_to_process, &devA, &n, &row_id, &inv};
+	void* argsColumn[] = {&dev_to_process, &devA, &n, &column_id, &inv};
 	
 	int tX_oneD = 1024;
 	int bX_oneD = (n + tX_oneD-1)/tX_oneD;
@@ -33,22 +36,20 @@ bool inverse_cpu(int *A, int *B, int n){
 	int bX_twoD = (n + tX_twoD-1)/tX_twoD;
 	int bY_twoD = (n + tY_twoD-1)/tY_twoD;
 			
-    cuMemHostRegister((void *) A, n*4, CU_MEMHOSTREGISTER_PORTABLE);
-    cuMemAlloc(&devA, n*4);
-    cuMemcpyHtoD(&devA, A, n*4); 
+    cuMemHostRegister((void *) A, n*n*sizeof(Value), CU_MEMHOSTREGISTER_PORTABLE);
+    cuMemAlloc(&devA, n*n*sizeof(Value));
+    cuMemcpyHtoD(&devA, A, n*n*sizeof(Value)); 
 
-	cuMemAlloc(&devB, n*4);
+	cuMemAlloc(&devB, n*n*sizeof(Value));
     res = cuLaunchKernel(init, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, argsInit, 0);
     cuCtxSynchronize(); 
-	/*	
-	FWD(i,0,n)
-		FWD(j,0,n)
-			B[i*n+j] = (i == j);
-	*/	
 
 	FWD(i,0,n){
 
-		// finding row with 1 on i-th column
+		row_id = i;
+
+		// finding row with non-zero value on i-th column
+		cuMemcpyDtoH(A+i*n+i, devA+i*n+i, sizeof(Value));
 		if(A[i*n+i] == Value(0)){
 			int k = -1;
 			FWD(j,i+1,n)
@@ -57,11 +58,21 @@ bool inverse_cpu(int *A, int *B, int n){
 					break;
 				}
 			if(k == -1) return 0;
-			FWD(j,0,n) std::swap(A[i*n+j], A[k*n+j]);
-			FWD(j,0,n) std::swap(B[i*n+j], B[k*n+j]);
+			row_to_swap = k;
+			
+			dev_to_process = devA;
+    		res = cuLaunchKernel(swap, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsSwap, 0);
+    		cuCtxSynchronize(); 
+		
+			dev_to_process = devB;
+    		res = cuLaunchKernel(swap, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsSwap, 0);
+    		cuCtxSynchronize(); 
 		}
+
+		cuMemcpyDtoH(A+i*n+i, devA+i*n+i, sizeof(Value));		
+		inv = inverse(A[i*n+i], get_modulus());
+		
 		if(A[i*n+i] != Value(1)) {
-			row_id = i;
 			
 			dev_to_process = devA;
     		res = cuLaunchKernel(fixRow, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsRow, 0);
@@ -71,7 +82,7 @@ bool inverse_cpu(int *A, int *B, int n){
     		res = cuLaunchKernel(fixRow, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsRow, 0);
     		cuCtxSynchronize(); 
 		}		
-		// removing 1's in this column from other rows
+		// reducing all the other elements of the i-th column to zero
 		column_id = i;
 			
 		dev_to_process = devA;
@@ -79,15 +90,9 @@ bool inverse_cpu(int *A, int *B, int n){
     	cuCtxSynchronize(); 
 		
 		dev_to_process = devB;
-    	res = cuLaunchKernel(fixRow, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, argsColumn, 0);
+    	res = cuLaunchKernel(fixColumn, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, argsColumn, 0);
     	cuCtxSynchronize(); 
-		/*
-		FWD(k,0,n)
-			if(i != k && A[k*n+i]){
-				FWD(j,0,n) A[k*n+j] ^= A[i*n+j];
-				FWD(j,0,n) B[k*n+j] ^= B[i*n+j];	
-			}
-		*/
+
 	}
 
     return 1;
