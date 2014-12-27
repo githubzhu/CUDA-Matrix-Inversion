@@ -2,7 +2,7 @@
 
 #define FWD(a,b,c) for(int a=(b); a<(c); ++a)
 
-bool inverse_gpu(int *A, int *B, int n){
+bool inverse_cpu(int *A, int *B, int n){
 
 	FWD(i,0,n)
 		FWD(j,0,n)
