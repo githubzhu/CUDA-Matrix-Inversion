@@ -21,7 +21,9 @@ CUDA_OBJECTS := $(patsubst src/%.cu,obj/%.ptx,$(CUDA_SOURCES))
 
 TESTS := $(wildcard test/data/*.in)
 
-.PHONY: clean test $(TESTS)
+.DEFAULT_GOAL := run
+.PHONY: clean test $(TESTS) run
+.SECONDARY:
 
 obj/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -40,6 +42,12 @@ $(TESTS):
 	./bin/run_cpu < tmp/input >> tmp/output
 	./bin/run_gpu < tmp/input >> tmp/output
 	./bin/verify < tmp/output
+
+run: bin/generator bin/run_gpu
+	./bin/generator < test/data/example.in > tmp/input
+	./bin/run_gpu < tmp/input > tmp/output
+	cat tmp/input
+	cat tmp/output
 
 clean:
 	rm -rf bin/* obj/*.o obj/*.ptx tmp/*

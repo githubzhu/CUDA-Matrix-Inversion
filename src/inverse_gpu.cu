@@ -1,30 +1,32 @@
-#include<cstdio>
+#include "field.hpp"
 
 extern "C" {
-__global__
-void init(int* B, int n){
-    int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
-    int thidY = (blockIdx.y * blockDim.y) + threadIdx.y;
-   
-}
 
-//P := dev_to_process
 __global__
-void swap(int* P, int n, int row_id, int row_to_swap){
-    int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
-   
+void make_unit(int* M, int n){
+	//int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
+	//int thidY = (blockIdx.y * blockDim.y) + threadIdx.y;
 }
 
 __global__
-void fixRow(int* P, int* A, int n, int row_id, Value inv){
-    int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
-   
+void find_nonzero(int* M, int n, int i, int* k){
+	//int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;	
 }
 
 __global__
-void fixColumn(int* P, int* A, int n, int column_id, Value inv){
-    int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
-    int thidY = (blockIdx.y * blockDim.y) + threadIdx.y;
-   
+void swap(int* M, int n, int i, int k){
+	//int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
 }
+
+__global__
+void fix_row(int* M, int n, int i, field_element mul){
+	//int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
+}
+
+__global__
+void fix_column(int* M, int n, int i){
+	//int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
+	//int thidY = (blockIdx.y * blockDim.y) + threadIdx.y;
+}
+
 }

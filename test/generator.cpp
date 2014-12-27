@@ -12,16 +12,33 @@ int main(){
 		int seed;
 		assert(scanf("%d", &seed) == 1);
 		
+		int mod;
+		assert(scanf("%d", &mod) == 1);
+
 		int n;
 		assert(scanf("%d", &n) == 1);
 
 		mt19937 eng(seed);
 		uniform_int_distribution<> dist(0, 1);
 
-		printf("%d\n", n);
+		printf("%d\n%d\n", mod, n);
 		FWD(i,0,n)
 			FWD(j,0,n)
 				printf("%d%c", dist(eng), " \n"[j==n-1]);
+	}else if(strcmp(type, "direct") == 0){
+		int mod;
+		assert(scanf("%d", &mod) == 1);
+
+		int n;
+		assert(scanf("%d", &n) == 1);
+
+		printf("%d\n%d\n", mod, n);
+		FWD(i,0,n)
+			FWD(j,0,n){
+				int a;
+				scanf("%d", &a);
+				printf("%d%c", a, " \n"[j==n-1]);
+			}
 	}else{
 		fprintf(stderr, "Test type %s has not been implemented yet.\n", type);
 		return 1;

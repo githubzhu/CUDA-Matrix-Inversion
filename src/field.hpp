@@ -3,32 +3,33 @@
 
 typedef long long LL;
 
-int inverse(int a, int p){
-	// inverse(p%a, a) * p = ka + 1
-	return a == 1 ? 1 : ((LL)(a-inverse(p%a, a))*p+1)/a;
-}
+int inverse(int, int);
+void field_init(int);
+int field_modulus();
 
-struct Value {
-	Value() = default;
-	Value(const Value &v) = default;
-	Value(int v) : value(v) { value %= modulus; }
+struct field_element {
+	field_element() : value(0) {}
+	field_element(const field_element &v) : value(v.value) {}
+	field_element(int v) : value(v) { value %= modulus; }
 
-	~Value() noexcept = default;
-
-	Value& operator=(const Value &v) = default;
-	Value& operator+=(const Value &v){ value += v.value; if(value >= modulus) value -= modulus; }
-	Value& operator-=(const Value &v){ value -= v.value; if(value < 0) value += modulus; }
-	Value& operator*=(const Value &v){ value *= v.value; value %= modulus; }
+	field_element& operator=(const field_element &v){ value = v.value; return *this; }
+	field_element& operator+=(const field_element &v){
+		value += v.value; if(value >= modulus) value -= modulus; return *this;
+	}
+	field_element& operator-=(const field_element &v){
+		value -= v.value; if(value < 0) value += modulus; return *this;
+	}
+	field_element& operator*=(const field_element &v){ value *= v.value; value %= modulus; return *this; }
 	
-	Value operator+(const Value &v) const { return Value(*this) += a; }
-	Value operator-(const Value &v) const { return Value(*this) -= a; }
-	Value operator*(const Value &v) const { return Value(*this) *= a; }
+	field_element operator+(const field_element &v) const { return field_element(*this) += v; }
+	field_element operator-(const field_element &v) const { return field_element(*this) -= v; }
+	field_element operator*(const field_element &v) const { return field_element(*this) *= v; }
 
-	Value operator-() const { return -value; }
-	Value operator~() const { return inverse(value, modulus); }
+	field_element operator-() const { return -value; }
+	field_element operator~() const { return inverse(value, modulus); }
 
-	bool operator==(const Value &v) const { return value == v.value; }
-	bool operator!=(const Value &v) const { return value != v.value; }
+	bool operator==(const field_element &v) const { return value == v.value; }
+	bool operator!=(const field_element &v) const { return value != v.value; }
 
 	int get_value() const { return value; }
 
@@ -40,6 +41,4 @@ private:
 	static int modulus;
 };
 
-int Value::modulus(2);
-
-#endif FIELD_HPP
+#endif // FIELD_HPP

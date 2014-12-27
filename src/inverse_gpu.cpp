@@ -1,99 +1,122 @@
 #include <bits/stdc++.h>
+#include <cuda.h>
+#include "field.hpp"
+#include "utils.hpp"
+
+#define CHECK(r) \
+	if(r != CUDA_SUCCESS){ \
+		fprintf(stderr, "%s:%d CUDA error: %s\n", __FILE__, __LINE__, cuda_error_string(r)); \
+		exit(1); \
+	}
 
 #define FWD(a,b,c) for(int a=(b); a<(c); ++a)
 
-bool inverse_gpu(int *A, int *B, int n){
+int ceil(int a, int b){
+	return (a+b-1) / b;
+}
+
+template<typename T>
+void set_device_variable(CUdeviceptr var, T val){
+	CHECK(cuMemcpyHtoD(var, &val, sizeof(T)));
+}
+
+template<typename T>
+void get_device_variable(CUdeviceptr var, T& val){
+	CHECK(cuMemcpyDtoH(&val, var, sizeof(T)));
+}
+
+bool inverse_gpu(field_element *A, field_element *B, int n){
 	
-	cuInit(0);
-    
-    CUdevice cuDevice;
-    CUresult res = cuDeviceGet(&cuDevice, 0);
-
-    CUcontext cuContext;
-    res = cuCtxCreate(&cuContext, 0, cuDevice);
-
-    CUmodule cuModule = (CUmodule)0;
-    res = cuModuleLoad(&cuModule, "inverse_gpu.ptx");
-
-    CUfunction init, swap, fixRow, fixColumn;
-	res = cuModuleGetFunction(&init, cuModule, "init");
-	res = cuModuleGetFunction(&swap, cuModule, "swap");
-    res = cuModuleGetFunction(&fixRow, cuModule, "fixRow");
-	res = cuModuleGetFunction(&fixColumn, cuModule, "fixColumn");
+	CHECK(cuInit(0));
 	
-	Value inv;
- 	int row_id, column_id, row_to_swap;
- 	CUdeviceptr devA, devB, dev_to_process;
- 	void* argsInit[] = {&devB, &n};
- 	void* argsSwap[] = {&dev_to_process, &n, &row_id, &row_to_swap};
- 	void* argsRow[] = {&dev_to_process, &devA, &n, &row_id, &inv};
-	void* argsColumn[] = {&dev_to_process, &devA, &n, &column_id, &inv};
+	CUdevice cuDevice;
+	CHECK(cuDeviceGet(&cuDevice, 0));
+
+	CUcontext cuContext;
+	CHECK(cuCtxCreate(&cuContext, 0, cuDevice));
+
+	CUmodule cuModule = (CUmodule)0;
+	CHECK(cuModuleLoad(&cuModule, "obj/inverse_gpu.ptx"));
+
+	CUfunction make_unit, find_nonzero, swap, fix_row, fix_column;
+	CHECK(cuModuleGetFunction(&make_unit, cuModule, "make_unit"));
+	CHECK(cuModuleGetFunction(&find_nonzero, cuModule, "find_nonzero"));
+	CHECK(cuModuleGetFunction(&swap, cuModule, "swap"));
+	CHECK(cuModuleGetFunction(&fix_row, cuModule, "fix_row"));
+	CHECK(cuModuleGetFunction(&fix_column, cuModule, "fix_column"));
+
+	CUdeviceptr devA, devB, dev_to_process, row_with_one;
+	int current_index, row_to_swap;
+	field_element mul;
+	void* args_make_unit[] = {&devB, &n};
+	void* args_find_nonzero[] = {&devA, &n, &current_index, &row_with_one};
+	void* args_swap[] = {&dev_to_process, &n, &current_index, &row_to_swap};
+	void* args_fix_row[] = {&dev_to_process, &n, &current_index, &mul};
+	void* args_fix_column[] = {&dev_to_process, &devA, &n, &current_index};
 	
 	int tX_oneD = 1024;
-	int bX_oneD = (n + tX_oneD-1)/tX_oneD;
+	int bX_oneD = ceil(n, tX_oneD);
 	
 	int tX_twoD = 32, tY_twoD = 32;
-	int bX_twoD = (n + tX_twoD-1)/tX_twoD;
-	int bY_twoD = (n + tY_twoD-1)/tY_twoD;
-			
-    cuMemHostRegister((void *) A, n*n*sizeof(Value), CU_MEMHOSTREGISTER_PORTABLE);
-    cuMemAlloc(&devA, n*n*sizeof(Value));
-    cuMemcpyHtoD(&devA, A, n*n*sizeof(Value)); 
+	int bX_twoD = ceil(n, tX_twoD);
+	int bY_twoD = ceil(n, tY_twoD);
+	
+	int bytes = n*n*sizeof(field_element);
+	CHECK(cuMemHostRegister((void*)A, bytes, CU_MEMHOSTREGISTER_PORTABLE));
+	CHECK(cuMemAlloc(&devA, bytes));
+	CHECK(cuMemcpyHtoD(devA, A, bytes)); 
 
-	cuMemAlloc(&devB, n*n*sizeof(Value));
-    res = cuLaunchKernel(init, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, argsInit, 0);
-    cuCtxSynchronize(); 
+	CHECK(cuMemAlloc(&devB, bytes));
+	CHECK(cuLaunchKernel(make_unit, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, args_make_unit, 0));
+	CHECK(cuCtxSynchronize());
 
-	FWD(i,0,n){
+	CHECK(cuMemAlloc(&row_with_one, sizeof(int)));
 
-		row_id = i;
+	for(current_index = 0; current_index < n; ++current_index){
+		
+		int cell = current_index * n + current_index;
 
 		// finding row with non-zero value on i-th column
-		cuMemcpyDtoH(A+i*n+i, devA+i*n+i, sizeof(Value));
-		if(A[i*n+i] == Value(0)){
-			int k = -1;
-			FWD(j,i+1,n)
-				if(A[j*n+i]){
-					k = j;
-					break;
-				}
-			if(k == -1) return 0;
-			row_to_swap = k;
-			
-			dev_to_process = devA;
-    		res = cuLaunchKernel(swap, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsSwap, 0);
-    		cuCtxSynchronize(); 
-		
-			dev_to_process = devB;
-    		res = cuLaunchKernel(swap, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsSwap, 0);
-    		cuCtxSynchronize(); 
-		}
+		set_device_variable(row_with_one, -1);
+		CHECK(cuLaunchKernel(find_nonzero, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_find_nonzero, 0));
+		get_device_variable(row_with_one, row_to_swap);
+		if(row_to_swap == -1) return 0;
 
-		cuMemcpyDtoH(A+i*n+i, devA+i*n+i, sizeof(Value));		
-		inv = inverse(A[i*n+i], get_modulus());
-		
-		if(A[i*n+i] != Value(1)) {
-			
-			dev_to_process = devA;
-    		res = cuLaunchKernel(fixRow, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsRow, 0);
-    		cuCtxSynchronize(); 
-		
-			dev_to_process = devB;
-    		res = cuLaunchKernel(fixRow, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, argsRow, 0);
-    		cuCtxSynchronize(); 
-		}		
-		// reducing all the other elements of the i-th column to zero
-		column_id = i;
-			
 		dev_to_process = devA;
-    	res = cuLaunchKernel(fixColumn, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, argsColumn, 0);
-    	cuCtxSynchronize(); 
+		CHECK(cuLaunchKernel(swap, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_swap, 0));
+		CHECK(cuCtxSynchronize()); 
 		
 		dev_to_process = devB;
-    	res = cuLaunchKernel(fixColumn, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, argsColumn, 0);
-    	cuCtxSynchronize(); 
+		CHECK(cuLaunchKernel(swap, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_swap, 0));
+		CHECK(cuCtxSynchronize()); 
+
+		// multiplying row to get one in i-th diagonal cell
+		CHECK(cuMemcpyDtoH(A+cell, devA+cell, sizeof(field_element)));
+		if(A[cell] != 1) {
+			mul = ~A[cell];
+			
+			dev_to_process = devA;
+			CHECK(cuLaunchKernel(fix_row, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_fix_row, 0));
+			CHECK(cuCtxSynchronize()); 
+		
+			dev_to_process = devB;
+			CHECK(cuLaunchKernel(fix_row, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_fix_row, 0));
+			CHECK(cuCtxSynchronize());
+		}		
+
+		// reducing all the other elements of the i-th column to zero			
+		dev_to_process = devA;
+		CHECK(cuLaunchKernel(fix_column, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, args_fix_column, 0));
+		CHECK(cuCtxSynchronize()); 
+		
+		dev_to_process = devB;
+		CHECK(cuLaunchKernel(fix_column, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, args_fix_column, 0));
+		CHECK(cuCtxSynchronize());
 
 	}
 
-    return 1;
+	CHECK(cuMemHostRegister((void*)B, bytes, CU_MEMHOSTREGISTER_PORTABLE));
+	CHECK(cuMemcpyDtoH(B, devB, bytes)); 
+
+	return 1;
 }

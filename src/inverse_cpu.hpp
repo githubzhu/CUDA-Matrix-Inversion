@@ -1,3 +1,4 @@
+#include "field.hpp"
 
-bool inverse_cpu(int *A, int *B, int n);
+bool inverse_cpu(field_element *A, field_element *B, int n);
 
