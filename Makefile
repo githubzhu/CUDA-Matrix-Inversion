@@ -20,9 +20,10 @@ CXX_OBJECTS := $(patsubst src/%.cpp,obj/%.o,$(CXX_SOURCES))
 CUDA_OBJECTS := $(patsubst src/%.cu,obj/%.ptx,$(CUDA_SOURCES))
 
 TESTS := $(wildcard test/data/*.in)
+PTESTS := $(wildcard benchmark/data/*.in)
 
 .DEFAULT_GOAL := run
-.PHONY: clean test $(TESTS) run
+.PHONY: install run test clean $(TESTS) $(PTESTS)
 .SECONDARY:
 
 install:
@@ -40,11 +41,20 @@ bin/%: test/%.cpp $(CXX_OBJECTS) $(CUDA_OBJECTS)
 test: $(TESTS)
 
 $(TESTS): bin/generator bin/run_cpu bin/run_gpu bin/verify
-	./bin/generator < $@ > tmp/input
-	cat tmp/input > tmp/output
-	./bin/run_cpu < tmp/input >> tmp/output
-	./bin/run_gpu < tmp/input >> tmp/output
-	./bin/verify < tmp/output
+	@echo "Running test" $@
+	@./bin/generator < $@ > tmp/input
+	@cat tmp/input > tmp/output
+	@./bin/run_cpu < tmp/input >> tmp/output
+	@./bin/run_gpu < tmp/input >> tmp/output
+	@./bin/verify < tmp/output
+
+benchmark: $(PTESTS)
+
+$(PTESTS): bin/generator bin/run_cpu bin/run_gpu
+	@echo "Running test" $@
+	@./bin/generator < $@ > tmp/input
+	@timeout 5s time -f "CPU: Elapsed real time: %es" ./bin/run_cpu < tmp/input > /dev/null || echo "CPU: Process exceeded 5s time limit"
+	@timeout 10s time -f "GPU: Elapsed real time: %es" ./bin/run_gpu < tmp/input > /dev/null || echo "GPU: Process exceeded 10s time limit"
 
 run: bin/generator bin/run_gpu
 	./bin/generator < test/data/0.2.Z2.in > tmp/input
