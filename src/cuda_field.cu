@@ -16,7 +16,7 @@ void cuda_field_init(int m){
 
 struct cuda_field_element {
 	__device__
-	cuda_field_element() : value(0) {}
+	cuda_field_element(){}
 	
 	__device__
 	cuda_field_element(const cuda_field_element &v) : value(v.value) {}
@@ -39,7 +39,7 @@ struct cuda_field_element {
 	}
 
 	__device__
-	cuda_field_element& operator*=(const cuda_field_element &v){ value *= v.value; value %= cuda_field_modulus; return *this; }
+	cuda_field_element& operator*=(const cuda_field_element &v){ value = (LL)value * v.value % cuda_field_modulus; return *this; }
 	
 
 	__device__
@@ -53,7 +53,7 @@ struct cuda_field_element {
 
 
 	__device__
-	cuda_field_element operator-() const { return -value; }
+	cuda_field_element operator-() const { return value == 0 ? 0 : cuda_field_modulus - value; }
 
 	__device__
 	cuda_field_element operator~() const { return inverse(value, cuda_field_modulus); }

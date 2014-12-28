@@ -82,22 +82,26 @@ bool inverse_gpu(field_element *A, field_element *B, int n){
 
 	CHECK(cuMemAlloc(&row_with_one, sizeof(int)));
 	for(current_index = 0; current_index < n; ++current_index){
-		//fprintf(stderr, "current_matrix\n");
-		// CHECK(cuMemcpyDtoH(A, devA, bytes));
-		// FWD(i,0,n) FWD(j,0,n) fprintf(stderr, "%d%c", A[i*n+j].get_value(), " \n"[j==n-1]);
+		/*
+		fprintf(stderr, "current_matrix\n");
+		CHECK(cuMemcpyDtoH(A, devA, bytes));
+		FWD(i,0,n) FWD(j,0,n) fprintf(stdout, "%d%c", A[i*n+j].get_value(), " \n"[j==n-1]);
+		*/
 
-		// fprintf(stderr, "current_index = %d\n", current_index);
+		//fprintf(stderr, "current_index = %d\n", current_index);
 
 		int cell = current_index * n + current_index;
 
 		// finding row with non-zero value on i-th column
 		CHECK(cuMemcpyDtoH(A+cell, devA+cell*sizeof(field_element), sizeof(field_element)));
-		if(A[cell] != 1){
+		if(A[cell] == 0){
 			set_device_variable(row_with_one, -1);
 			CHECK(cuLaunchKernel(find_nonzero, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_find_nonzero, 0));
 			get_device_variable(row_with_one, row_to_swap);
-			// fprintf(stderr, "row_to_swap = %d\n", row_to_swap);
+			//fprintf(stderr, "row_to_swap = %d\n", row_to_swap);
 			if(row_to_swap == -1) return 0;
+
+			//fprintf(stderr, "swapping rows %d %d\n", current_index, row_to_swap);
 
 			dev_to_process = devA;
 			CHECK(cuLaunchKernel(swap, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_swap, 0));
@@ -120,10 +124,23 @@ bool inverse_gpu(field_element *A, field_element *B, int n){
 			CHECK(cuLaunchKernel(fix_row, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_fix_row, 0));
 			CHECK(cuCtxSynchronize());
 		}	
+
+		/*
+		fprintf(stderr, "matrix with 1 on diagonal\n");
+		CHECK(cuMemcpyDtoH(A, devA, bytes));
+		FWD(i,0,n) FWD(j,0,n) fprintf(stderr, "%d%c", A[i*n+j].get_value(), " \n"[j==n-1]);
+		*/
+
 		// reducing all the other elements of the i-th column to zero	
 		CHECK(cuLaunchKernel(update_column, bX_oneD, 1, 1, tX_oneD, 1, 1, 0, 0, args_update_column, 0));
 		CHECK(cuCtxSynchronize()); 	
 		
+		/*
+		fprintf(stderr, "saved column:\n");
+		CHECK(cuMemcpyDtoH(A, i_th_column, 4*n));
+		FWD(i,0,n) fprintf(stderr, "%d%c", A[i].get_value(), " \n"[i==n-1]);
+		*/
+
 		dev_to_process = devA;
 		CHECK(cuLaunchKernel(fix_column, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, args_fix_column, 0));
 		CHECK(cuCtxSynchronize()); 
@@ -131,6 +148,13 @@ bool inverse_gpu(field_element *A, field_element *B, int n){
 		dev_to_process = devB;
 		CHECK(cuLaunchKernel(fix_column, bX_twoD, bY_twoD, 1, tX_twoD, tY_twoD, 1, 0, 0, args_fix_column, 0));
 		CHECK(cuCtxSynchronize());
+
+		/*
+		fprintf(stderr, "matrix with cleared column\n");
+		CHECK(cuMemcpyDtoH(A, devA, bytes));
+		FWD(i,0,n) FWD(j,0,n) fprintf(stderr, "%d%c", A[i*n+j].get_value(), " \n"[j==n-1]);
+		fprintf(stderr, "\n\n");
+		*/
 
 	}
 

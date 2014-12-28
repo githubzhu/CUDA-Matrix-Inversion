@@ -18,13 +18,13 @@ struct field_element {
 	field_element& operator-=(const field_element &v){
 		value -= v.value; if(value < 0) value += modulus; return *this;
 	}
-	field_element& operator*=(const field_element &v){ value *= v.value; value %= modulus; return *this; }
+	field_element& operator*=(const field_element &v){ value = (LL)value * v.value % modulus; return *this; }
 	
 	field_element operator+(const field_element &v) const { return field_element(*this) += v; }
 	field_element operator-(const field_element &v) const { return field_element(*this) -= v; }
 	field_element operator*(const field_element &v) const { return field_element(*this) *= v; }
 
-	field_element operator-() const { return -value; }
+	field_element operator-() const { return value == 0 ? 0 : modulus - value; }
 	field_element operator~() const { return inverse(value, modulus); }
 
 	bool operator==(const field_element &v) const { return value == v.value; }

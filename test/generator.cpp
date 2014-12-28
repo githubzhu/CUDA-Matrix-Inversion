@@ -19,7 +19,7 @@ int main(){
 		assert(scanf("%d", &n) == 1);
 
 		mt19937 eng(seed);
-		uniform_int_distribution<> dist(0, 1);
+		uniform_int_distribution<> dist(0, mod-1);
 
 		printf("%d\n%d\n", mod, n);
 		FWD(i,0,n)

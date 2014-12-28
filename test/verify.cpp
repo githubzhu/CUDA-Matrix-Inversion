@@ -79,7 +79,9 @@ int main(){
 	delete[] gpu;
 
 	if(status){
-		fprintf(stderr, "Problems detected\n");
+		fprintf(stderr, "\033[0;31mProblems detected\033[0m\n");
+	}else{
+		fprintf(stderr, "\033[0;32mAll correct\033[0m\n");
 	}
 
 	return status;

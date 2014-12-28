@@ -25,6 +25,9 @@ TESTS := $(wildcard test/data/*.in)
 .PHONY: clean test $(TESTS) run
 .SECONDARY:
 
+install:
+	mkdir bin obj tmp
+
 obj/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -34,9 +37,9 @@ obj/%.ptx: src/%.cu
 bin/%: test/%.cpp $(CXX_OBJECTS) $(CUDA_OBJECTS)
 	$(CXX) -fPIC $(CXXFLAGS) -o $@ $< $(CXX_OBJECTS) $(LIBS)
 
-test: bin/generator bin/run_cpu bin/run_gpu bin/verify $(TESTS)
+test: $(TESTS)
 
-$(TESTS):
+$(TESTS): bin/generator bin/run_cpu bin/run_gpu bin/verify
 	./bin/generator < $@ > tmp/input
 	cat tmp/input > tmp/output
 	./bin/run_cpu < tmp/input >> tmp/output
@@ -44,7 +47,7 @@ $(TESTS):
 	./bin/verify < tmp/output
 
 run: bin/generator bin/run_gpu
-	./bin/generator < test/data/example.in > tmp/input
+	./bin/generator < test/data/0.2.Z2.in > tmp/input
 	./bin/run_gpu < tmp/input > tmp/output
 	cat tmp/input
 	cat tmp/output
