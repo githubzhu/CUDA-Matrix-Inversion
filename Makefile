@@ -2,7 +2,7 @@
 CUDA_INSTALL_PATH ?= /usr/local/cuda
 
 CXX := g++
-NVCC  := nvcc
+NVCC  := /usr/local/cuda/bin/nvcc
 
 INCLUDES := -I./src -I$(CUDA_INSTALL_PATH)/include
 LIBS := -lcuda
@@ -42,11 +42,11 @@ test: $(TESTS)
 
 $(TESTS): bin/generator bin/run_cpu bin/run_gpu bin/verify
 	@echo "Running test" $@
-	@./bin/generator < $@ > tmp/input
-	@cat tmp/input > tmp/output
-	@./bin/run_cpu < tmp/input >> tmp/output
-	@./bin/run_gpu < tmp/input >> tmp/output
-	@./bin/verify < tmp/output
+	./bin/generator < $@ > tmp/input
+	cat tmp/input > tmp/output
+	./bin/run_cpu < tmp/input >> tmp/output
+	./bin/run_gpu < tmp/input >> tmp/output
+	./bin/verify < tmp/output
 
 benchmark: $(PTESTS)
 

@@ -58,10 +58,10 @@ __global__
 void fix_column(cuda_field_element* M, cuda_field_element* i_th_column, int n, int i){
 	int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int thidY = (blockIdx.y * blockDim.y) + threadIdx.y;
-	__shared__ cuda_field_element P[32];
+	//__shared__ cuda_field_element P[32];
 	if(thidY != i && thidX < n && thidY < n){
-		P[threadIdx.x] = M[i*n+thidX];
-		M[thidY*n+thidX] -= i_th_column[thidY]*P[threadIdx.x];
+		//P[threadIdx.x] = M[i*n+thidX];
+		M[thidY*n+thidX] -= i_th_column[thidY]*M[i*n+thidX];//P[threadIdx.x];
 	}
 }
 
