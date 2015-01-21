@@ -12,11 +12,7 @@ void make_unit(cuda_field_element* B, int n){
 	int thidX = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int thidY = (blockIdx.y * blockDim.y) + threadIdx.y;
 	if(thidX < n && thidY < n){
-		if(thidX == thidY){
-			B[thidX*n+thidY] = 1;
-		}else{
-			B[thidX*n+thidY] = 0;
-		}
+		B[thidX*n+thidY] = (thidX == thidY);
 	}
 }
 
